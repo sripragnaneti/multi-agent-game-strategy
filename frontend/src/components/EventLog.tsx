@@ -1,75 +1,68 @@
 import React from 'react';
 import { GameEvent } from '../types';
-import { Activity, ShieldAlert, Swords, Target, Move } from 'lucide-react';
+import { Activity, ShieldAlert, Swords, Gem, MoveRight, Clock } from 'lucide-react';
+import { AGENT_NAMES } from '../agentNames';
 
-interface EventLogProps {
-  events: GameEvent[];
-}
+interface EventLogProps { events: GameEvent[]; }
 
-export const EventLog: React.FC<EventLogProps> = ({ events }) => {
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'ATTACK':
-        return <Swords size={14} color="#f43f5e" />;
-      case 'DEFEND':
-        return <ShieldAlert size={14} color="#10b981" />;
-      case 'COLLECT':
-        return <Target size={14} color="#fbbf24" />;
-      case 'MOVE':
-        return <Move size={14} color="#38bdf8" />;
-      default:
-        return <Activity size={14} color="#94a3b8" />;
-    }
-  };
+const EVENT_ICON: Record<string, React.ReactNode> = {
+  ATTACK:  <Swords    size={13} color="#fb923c" />,
+  DEFEND:  <ShieldAlert size={13} color="#4ade80" />,
+  COLLECT: <Gem       size={13} color="#c8a84b" />,
+  MOVE:    <MoveRight size={13} color="#7a7870" />,
+  WAIT:    <Clock     size={13} color="#4a4840" />,
+};
 
-  return (
-    <div className="card" style={{ height: '320px', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h3 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Activity size={16} color="#38bdf8" />
-          SIMULATION EVENT TIMELINE
-        </h3>
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{events.length} Events</span>
-      </div>
+// Replaces "A1", "B2" etc. in description text with character names
+const substituteNames = (text: string): string => {
+  let out = text;
+  for (const [id, name] of Object.entries(AGENT_NAMES)) {
+    out = out.replaceAll(id, name);
+  }
+  return out;
+};
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
-        {events.length === 0 ? (
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', margin: 'auto' }}>
-            No actions recorded yet. Start simulation or advance a turn.
-          </p>
-        ) : (
-          [...events].reverse().map((ev) => {
-            const isTeamA = ev.team === 'A';
-            return (
-              <div
-                key={ev.id}
-                style={{
-                  background: '#0d1322',
-                  border: '1px solid #1e293b',
-                  borderLeft: `3px solid ${isTeamA ? 'var(--team-a)' : 'var(--team-b)'}`,
-                  borderRadius: '6px',
-                  padding: '6px 10px',
-                  fontSize: '0.8rem',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px'
-                }}
-              >
-                <div style={{ marginTop: '2px' }}>{getEventIcon(ev.event_type)}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <strong style={{ color: isTeamA ? 'var(--team-a)' : 'var(--team-b)' }}>
-                      TURN {ev.turn}: {ev.agent_id}
-                    </strong>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{ev.event_type}</span>
+export const EventLog: React.FC<EventLogProps> = ({ events }) => (
+  <div className="card" style={{ height: 300, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <Activity size={13} />
+        Battle Log
+      </span>
+      <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{events.length} events</span>
+    </div>
+
+    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {events.length === 0 ? (
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', textAlign: 'center', margin: 'auto' }}>
+          No actions yet — press Play or Next Turn.
+        </p>
+      ) : (
+        [...events].reverse().map((ev) => {
+          const isTeamA = ev.team === 'A';
+          return (
+            <div
+              key={ev.id}
+              className={`event-log-item ${isTeamA ? 'team-a' : 'team-b'}`}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                <div style={{ marginTop: 1, flexShrink: 0 }}>{EVENT_ICON[ev.event_type] ?? <Activity size={13} color="#4a4840" />}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.75rem', color: isTeamA ? 'var(--team-a-light)' : 'var(--team-b-light)' }}>
+                      {AGENT_NAMES[ev.agent_id] ?? ev.agent_id}
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>T{ev.turn}</span>
                   </div>
-                  <span style={{ color: '#cbd5e1', lineHeight: 1.3 }}>{ev.description}</span>
+                  <span style={{ color: '#a09888', lineHeight: 1.35, fontSize: '0.73rem', display: 'block' }}>
+                    {substituteNames(ev.description)}
+                  </span>
                 </div>
               </div>
-            );
-          })
-        )}
-      </div>
+            </div>
+          );
+        })
+      )}
     </div>
-  );
-};
+  </div>
+);

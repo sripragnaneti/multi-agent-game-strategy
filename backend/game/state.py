@@ -63,6 +63,9 @@ class AgentState(BaseModel):
     damage_dealt: int = 0
     objectives_captured: int = 0
     eliminations: int = 0
+    position_history: List[Tuple[int, int]] = Field(default_factory=list)
+    """Last 8 positions this agent stood on — used by the reward function
+    to detect and penalise back-and-forth oscillation."""
 
 class ObjectiveNode(BaseModel):
     id: str

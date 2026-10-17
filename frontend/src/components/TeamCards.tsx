@@ -1,97 +1,110 @@
 import React from 'react';
 import { GameState } from '../types';
-import { Shield, Zap, Award, Users } from 'lucide-react';
+import { AGENT_NAMES, AGENT_ROLES, TEAM_NAMES } from '../agentNames';
 
-interface TeamCardsProps {
-  state: GameState;
-}
+interface TeamCardsProps { state: GameState; }
 
 export const TeamCards: React.FC<TeamCardsProps> = ({ state }) => {
   const getTeamStats = (team: 'A' | 'B') => {
     const agents = Object.values(state.agents).filter((a) => a.team === team);
-    const alive = agents.filter((a) => a.is_alive).length;
-    const totalHp = agents.reduce((acc, a) => acc + (a.is_alive ? a.hp : 0), 0);
-    const damage = agents.reduce((acc, a) => acc + a.damage_dealt, 0);
+    const alive      = agents.filter((a) => a.is_alive).length;
+    const totalHp    = agents.reduce((s, a) => s + (a.is_alive ? a.hp : 0), 0);
+    const damage     = agents.reduce((s, a) => s + a.damage_dealt, 0);
     const objectives = state.objectives.filter((o) => o.captured_by === team).length;
-    const eliminations = agents.reduce((acc, a) => acc + a.eliminations, 0);
-
-    return { alive, totalHp, damage, objectives, eliminations };
+    const elims      = agents.reduce((s, a) => s + a.eliminations, 0);
+    return { alive, totalHp, damage, objectives, elims, agents };
   };
 
   const teamA = getTeamStats('A');
   const teamB = getTeamStats('B');
 
+  const renderAgentRow = (agent: ReturnType<typeof getTeamStats>['agents'][number]) => (
+    <div key={agent.id} style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '4px 6px', borderRadius: 6,
+      background: agent.is_alive ? 'transparent' : 'rgba(0,0,0,0.2)',
+      opacity: agent.is_alive ? 1 : 0.45,
+    }}>
+      {/* Token */}
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: agent.team === 'A'
+          ? 'radial-gradient(circle at 35% 35%, #f59e0b, #92400e)'
+          : 'radial-gradient(circle at 35% 35%, #2dd4bf, #0f5f59)',
+        border: `2px solid ${agent.team === 'A' ? '#fbbf24' : '#5eead4'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '0.6rem', fontFamily: "'Cinzel', serif", fontWeight: 700,
+        color: '#fff', flexShrink: 0,
+      }}>
+        {(AGENT_NAMES[agent.id] ?? agent.id).slice(0, 2)}
+      </div>
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+          <span style={{ fontWeight: 600 }}>{AGENT_NAMES[agent.id] ?? agent.id}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{AGENT_ROLES[agent.id]}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+          <div className="hp-bar-track" style={{ flex: 1 }}>
+            <div className="hp-bar-fill" style={{
+              width: `${agent.hp}%`,
+              background: agent.hp > 60 ? '#4ade80' : agent.hp > 30 ? '#fb923c' : '#ef4444',
+            }} />
+          </div>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', flexShrink: 0 }}>{agent.hp}/100</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const TeamCard = ({ team }: { team: 'A' | 'B' }) => {
+    const stats = team === 'A' ? teamA : teamB;
+    const color = team === 'A' ? 'var(--team-a)' : 'var(--team-b)';
+    const colorLight = team === 'A' ? 'var(--team-a-light)' : 'var(--team-b-light)';
+    const score = state.scores[team];
+
+    return (
+      <div className="card" style={{ borderTop: `3px solid ${color}`, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 className="faction-name" style={{ fontSize: '0.95rem', color: colorLight }}>{TEAM_NAMES[team]}</h2>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              {stats.alive}/2 active · {stats.totalHp} HP remaining
+            </span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="score-badge" style={{ color: colorLight }}>{score}</div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 1 }}>POINTS</div>
+          </div>
+        </div>
+
+        {/* Quick stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {[
+            { label: 'Damage', value: stats.damage },
+            { label: 'Relics', value: `${stats.objectives} / 3` },
+            { label: 'KOs', value: stats.elims },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ background: '#111414', padding: '5px 6px', borderRadius: 6, textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: colorLight, marginTop: 1 }}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Per-agent rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {stats.agents.map(renderAgentRow)}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-      {/* Team A Card */}
-      <div className="card" style={{ borderTop: '4px solid var(--team-a)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <div>
-            <h3 style={{ color: 'var(--team-a)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              TEAM ALPHA (A)
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Agents: A1 (Attacker) & A2 (Support)</span>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--team-a)' }}>{state.scores.A}</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>POINTS</span>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', fontSize: '0.8rem', textAlign: 'center' }}>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Surviving</span>
-            <strong style={{ color: teamA.alive > 0 ? '#10b981' : '#ef4444' }}>{teamA.alive} / 2</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Team HP</span>
-            <strong>{teamA.totalHp}</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Relics Held</span>
-            <strong style={{ color: '#fbbf24' }}>{teamA.objectives}</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>KOs</span>
-            <strong>{teamA.eliminations}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Team B Card */}
-      <div className="card" style={{ borderTop: '4px solid var(--team-b)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <div>
-            <h3 style={{ color: 'var(--team-b)', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              TEAM BETA (B)
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Agents: B1 (Attacker) & B2 (Flanker)</span>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--team-b)' }}>{state.scores.B}</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>POINTS</span>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', fontSize: '0.8rem', textAlign: 'center' }}>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Surviving</span>
-            <strong style={{ color: teamB.alive > 0 ? '#10b981' : '#ef4444' }}>{teamB.alive} / 2</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Team HP</span>
-            <strong>{teamB.totalHp}</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Relics Held</span>
-            <strong style={{ color: '#fbbf24' }}>{teamB.objectives}</strong>
-          </div>
-          <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px' }}>
-            <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>KOs</span>
-            <strong>{teamB.eliminations}</strong>
-          </div>
-        </div>
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+      <TeamCard team="A" />
+      <TeamCard team="B" />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameState, LatestDecision } from '../types';
-import { Brain, Cpu, Activity, Info } from 'lucide-react';
+import { Brain, Sword, Shield } from 'lucide-react';
+import { AGENT_NAMES, AGENT_ROLES, TEAM_NAMES } from '../agentNames';
 
 interface ActiveAgentPanelProps {
   state: GameState;
@@ -14,82 +15,112 @@ export const ActiveAgentPanel: React.FC<ActiveAgentPanelProps> = ({ state, decis
   if (!agent) {
     return (
       <div className="card">
-        <h3>Active Agent Inspection</h3>
-        <p style={{ color: 'var(--text-muted)' }}>Waiting for game initialization...</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>Waiting for game to start…</p>
       </div>
     );
   }
 
-  const isTeamA = agent.team === 'A';
+  const isTeamA    = agent.team === 'A';
+  const color      = isTeamA ? 'var(--team-a)' : 'var(--team-b)';
+  const colorLight = isTeamA ? 'var(--team-a-light)' : 'var(--team-b-light)';
+  const name       = AGENT_NAMES[agent.id] ?? agent.id;
+  const role       = AGENT_ROLES[agent.id] ?? agent.role;
+  const faction    = TEAM_NAMES[agent.team];
 
   return (
-    <div className="card" style={{ borderLeft: `4px solid ${isTeamA ? 'var(--team-a)' : 'var(--team-b)'}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Cpu size={20} color={isTeamA ? 'var(--team-a)' : 'var(--team-b)'} />
-          <h3 style={{ fontSize: '1.1rem' }}>
-            AGENT {agent.id} — {agent.role.toUpperCase()}
-          </h3>
+    <div className="card" style={{ borderLeft: `3px solid ${color}` }}>
+      {/* Agent identity */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Avatar */}
+          <div style={{
+            width: 38, height: 38, borderRadius: '50%',
+            background: isTeamA
+              ? 'radial-gradient(circle at 35% 35%, #f59e0b, #92400e)'
+              : 'radial-gradient(circle at 35% 35%, #2dd4bf, #0f5f59)',
+            border: `2px solid ${colorLight}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.75rem', color: '#fff',
+          }}>
+            {name.slice(0, 2)}
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 600, fontSize: '1rem', color: colorLight }}>{name}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{role} · {faction}</div>
+          </div>
         </div>
-        <span
-          style={{
-            background: isTeamA ? 'rgba(56, 189, 248, 0.15)' : 'rgba(244, 63, 94, 0.15)',
-            color: isTeamA ? 'var(--team-a)' : 'var(--team-b)',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontSize: '0.75rem',
-            fontWeight: 600
-          }}
-        >
-          TEAM {agent.team}
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
-        <div>
-          <span style={{ color: 'var(--text-muted)' }}>Position:</span> ({agent.position[0]}, {agent.position[1]})
-        </div>
-        <div>
-          <span style={{ color: 'var(--text-muted)' }}>Health:</span> {agent.hp} / {agent.max_hp} HP
-        </div>
-        <div>
-          <span style={{ color: 'var(--text-muted)' }}>Strategy:</span> <strong>{agent.strategy}</strong>
-        </div>
-        <div>
-          <span style={{ color: 'var(--text-muted)' }}>Stance:</span> {agent.is_defending ? '🛡️ DEFENDING (50% DR)' : '⚔️ OFFENSIVE'}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: agent.is_defending ? 'rgba(74,222,128,0.1)' : 'rgba(251,146,60,0.1)',
+          color: agent.is_defending ? '#4ade80' : '#fb923c',
+          padding: '3px 9px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600,
+        }}>
+          {agent.is_defending ? <Shield size={11} /> : <Sword size={11} />}
+          {agent.is_defending ? 'Defending' : 'Offence'}
         </div>
       </div>
 
-      {/* Decision Cycle Breakdown */}
-      <div style={{ background: '#0d1322', borderRadius: '8px', padding: '0.75rem', border: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.4rem', color: '#fbbf24', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Brain size={16} />
-          <span>AUTONOMOUS DECISION REASONING</span>
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: '0.6rem', fontSize: '0.73rem' }}>
+        {[
+          { label: 'Health',    value: `${agent.hp} / ${agent.max_hp}` },
+          { label: 'Position',  value: `(${agent.position[0]}, ${agent.position[1]})` },
+          { label: 'Strategy',  value: agent.strategy.replace('Alpha-Beta Pruning', 'α-β Search').replace('Cooperative Tactical', 'Heuristic') },
+        ].map(({ label, value }) => (
+          <div key={label} style={{ background: '#111414', padding: '5px 7px', borderRadius: 6 }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+            <div style={{ fontWeight: 600, marginTop: 2, color: 'var(--text-main)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* HP bar */}
+      <div className="hp-bar-track" style={{ marginBottom: '0.75rem' }}>
+        <div className="hp-bar-fill" style={{
+          width: `${agent.hp}%`,
+          background: agent.hp > 60 ? 'linear-gradient(90deg,#16a34a,#4ade80)' : agent.hp > 30 ? 'linear-gradient(90deg,#c2410c,#fb923c)' : 'linear-gradient(90deg,#991b1b,#ef4444)',
+        }} />
+      </div>
+
+      {/* Decision reasoning */}
+      <div style={{ background: '#111414', borderRadius: 8, padding: '0.65rem', border: '1px solid #1d2020' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.4rem', color: '#c8a84b', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <Brain size={13} />
+          Decision Reasoning
         </div>
 
         {decision && decision.agent_id === agent.id ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Action Executed:</span>
-              <span style={{ background: '#1e293b', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, color: '#38bdf8' }}>
+            <div style={{ marginBottom: 5 }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Action: </span>
+              <span style={{
+                background: '#1c1e1e', border: '1px solid #2e3232',
+                padding: '1px 7px', borderRadius: 4, fontWeight: 700, fontSize: '0.78rem', color: colorLight,
+              }}>
                 {decision.action}
               </span>
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.4, marginBottom: '0.5rem' }}>
-              "{decision.reason}"
+            <p style={{ fontSize: '0.78rem', color: '#c8c0b0', lineHeight: 1.45, marginBottom: '0.4rem' }}>
+              {decision.reason}
             </p>
-
             {decision.metrics && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)', background: '#131b2e', padding: '6px', borderRadius: '4px' }}>
-                <div>Nodes: <strong style={{ color: '#fff' }}>{decision.metrics.nodes_visited}</strong></div>
-                <div>Pruned: <strong style={{ color: '#10b981' }}>{decision.metrics.branches_pruned}</strong></div>
-                <div>Time: <strong style={{ color: '#fff' }}>{decision.metrics.execution_time_ms} ms</strong></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, fontSize: '0.7rem' }}>
+                {[
+                  { label: 'Nodes',   value: decision.metrics.nodes_visited },
+                  { label: 'Pruned',  value: decision.metrics.branches_pruned, color: '#4ade80' },
+                  { label: 'Time',    value: `${decision.metrics.execution_time_ms}ms` },
+                ].map(({ label, value, color: c }) => (
+                  <div key={label} style={{ background: '#0e0f0f', padding: '4px 6px', borderRadius: 5, textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.62rem' }}>{label}</div>
+                    <div style={{ fontWeight: 700, color: c ?? 'var(--text-main)' }}>{value}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         ) : (
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Agent is analyzing the state space... Click "Advance Turn" or "Start Simulation" to execute decision.
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Press <strong>Next Turn</strong> or <strong>Play</strong> to see {name}'s next decision.
           </p>
         )}
       </div>

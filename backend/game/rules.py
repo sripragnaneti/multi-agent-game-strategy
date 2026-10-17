@@ -74,6 +74,10 @@ class GameRules:
 
             old_pos = agent.position
             agent.position = (nr, nc)
+            # Track position history for oscillation detection (keep last 8)
+            agent.position_history.append(old_pos)
+            if len(agent.position_history) > 8:
+                agent.position_history = agent.position_history[-8:]
             state.events.append(GameEvent(
                 id=f"ev_{len(state.events)+1}",
                 turn=state.turn,

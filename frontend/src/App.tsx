@@ -1,32 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, LatestDecision, Scenario, SearchMetrics } from './types';
+import { GameState, LatestDecision, Scenario } from './types';
 import { fetchGameState, stepSimulation, resetMatch, fetchScenarios } from './services/api';
-import { GridBoard } from './components/GridBoard';
-import { TeamCards } from './components/TeamCards';
-import { ActiveAgentPanel } from './components/ActiveAgentPanel';
-import { EventLog } from './components/EventLog';
-import { MultiAgentView } from './components/MultiAgentView';
+import { GridBoard }          from './components/GridBoard';
+import { TeamCards }          from './components/TeamCards';
+import { ActiveAgentPanel }   from './components/ActiveAgentPanel';
+import { EventLog }           from './components/EventLog';
+import { MultiAgentView }     from './components/MultiAgentView';
 import { AlgorithmVisualizer } from './components/AlgorithmVisualizer';
-import { AnalyticsView } from './components/AnalyticsView';
-import { RulesAndPeasView } from './components/RulesAndPeasView';
-import { Play, Pause, RotateCcw, FastForward, Layers, Cpu, BarChart2, BookOpen, Users } from 'lucide-react';
+import { AnalyticsView }      from './components/AnalyticsView';
+import { RulesAndPeasView }   from './components/RulesAndPeasView';
+import {
+  Play, Pause, RotateCcw, SkipForward,
+  Swords, Users, Cpu, BarChart2, BookOpen,
+} from 'lucide-react';
+import { TEAM_NAMES } from './agentNames';
+
+type TabId = 'arena' | 'multiagent' | 'search' | 'analytics' | 'rules';
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'arena',      label: 'Battle Arena',        icon: <Swords size={14} /> },
+  { id: 'multiagent', label: 'Agent Dynamics',      icon: <Users size={14} /> },
+  { id: 'search',     label: 'Search Visualiser',   icon: <Cpu size={14} /> },
+  { id: 'analytics',  label: 'Analytics',           icon: <BarChart2 size={14} /> },
+  { id: 'rules',      label: 'Rules & PEAS',        icon: <BookOpen size={14} /> },
+];
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'arena' | 'multiagent' | 'search' | 'analytics' | 'rules'>('arena');
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [activeTab, setActiveTab]         = useState<TabId>('arena');
+  const [gameState, setGameState]         = useState<GameState | null>(null);
   const [latestDecision, setLatestDecision] = useState<LatestDecision | undefined>();
   const [isAutoRunning, setIsAutoRunning] = useState(false);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [scenarios, setScenarios]         = useState<Scenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState('standard');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]             = useState(true);
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Initialize data & WebSockets connection
+  // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchScenarios().then(setScenarios).catch(console.error);
 
-    const initData = async () => {
+    (async () => {
       try {
         const data = await fetchGameState();
         setGameState(data.state);
@@ -37,17 +51,15 @@ export function App() {
       } finally {
         setLoading(false);
       }
-    };
-    initData();
+    })();
 
-    // Connect WebSocket for live simulation updates
     const ws = new WebSocket('ws://localhost:8000/ws');
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'STATE_UPDATE') {
-        if (msg.state) setGameState(msg.state);
+        if (msg.state)           setGameState(msg.state);
         if (msg.latest_decision) setLatestDecision(msg.latest_decision);
         if (msg.is_auto_running !== undefined) setIsAutoRunning(msg.is_auto_running);
       } else if (msg.type === 'STATUS') {
@@ -56,17 +68,16 @@ export function App() {
       }
     };
 
-    return () => {
-      ws.close();
-    };
+    return () => ws.close();
   }, []);
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStep = async () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'STEP' }));
     } else {
       const res = await stepSimulation();
-      if (res.state) setGameState(res.state);
+      if (res.state)    setGameState(res.state);
       if (res.decision) setLatestDecision(res.decision);
     }
   };
@@ -83,8 +94,8 @@ export function App() {
   };
 
   const handleReset = (scenarioId?: string) => {
-    const sc = scenarioId || selectedScenario;
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    const sc = scenarioId ?? selectedScenario;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'RESET', scenario: sc }));
     } else {
       resetMatch(sc).then((res) => {
@@ -95,138 +106,144 @@ export function App() {
     }
   };
 
+  const handleScenarioChange = (id: string) => {
+    setSelectedScenario(id);
+    handleReset(id);
+  };
+
+  // ── Derived UI state ───────────────────────────────────────────────────────
+  const isCompleted = gameState?.status === 'COMPLETED';
+  const turn        = gameState?.turn ?? 0;
+  const maxTurns    = gameState?.max_turns ?? 60;
+  const winner      = gameState?.winner;
+
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading || !gameState) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0b0f19', color: '#fff' }}>
-        <h2>Connecting to AI Team Strategy Engine on localhost:8000...</h2>
+      <div style={{
+        display: 'flex', height: '100vh', alignItems: 'center',
+        justifyContent: 'center', background: '#0e0f0f', flexDirection: 'column', gap: '1rem',
+      }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #2e3232', borderTopColor: '#d97706', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <span style={{ color: '#7a7870', fontSize: '0.85rem' }}>Connecting to strategy engine…</span>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1rem', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {/* Top Header */}
-      <header
-        style={{
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '12px',
-          padding: '0.75rem 1.25rem',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem'
-        }}
-      >
+    <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0.75rem', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <header style={{
+        background: '#121414',
+        border: '1px solid #232626',
+        borderRadius: 10,
+        padding: '0.65rem 1.1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '1rem',
+        flexWrap: 'wrap',
+      }}>
+        {/* Title */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.5px' }}>
-              AI TEAM STRATEGY ARENA
-            </h1>
-            <span style={{ background: '#1e293b', color: '#38bdf8', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
-              FOAI REVIEW
-            </span>
+          <h1 style={{ fontSize: '1.05rem', color: '#e8e2d8', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Swords size={18} color="#d97706" />
+            Tactical Strategy Arena
+          </h1>
+          <div style={{ fontSize: '0.72rem', color: '#4a4840', marginTop: 2 }}>
+            {TEAM_NAMES.A} &nbsp;⚔️&nbsp; {TEAM_NAMES.B} &nbsp;·&nbsp; Turn {turn} / {maxTurns}
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Course: Fundamentals of Artificial Intelligence • Case Study: Multi-Agent Game Strategy
-          </span>
         </div>
 
-        {/* Global Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {/* Preset Scenario Selector */}
+        {/* Match status badge */}
+        {isCompleted ? (
+          <div className="status-pill status-ended">
+            🏆 {winner === 'A' ? TEAM_NAMES.A : winner === 'B' ? TEAM_NAMES.B : 'Draw'} Wins
+          </div>
+        ) : isAutoRunning ? (
+          <div className="status-pill status-running">
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />
+            Running
+          </div>
+        ) : (
+          <div className="status-pill status-idle">Paused</div>
+        )}
+
+        {/* Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {/* Scenario picker */}
           <select
+            className="scenario-select"
             value={selectedScenario}
-            onChange={(e) => {
-              setSelectedScenario(e.target.value);
-              handleReset(e.target.value);
-            }}
-            style={{
-              background: '#090d16',
-              color: '#f1f5f9',
-              border: '1px solid var(--border-color)',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              cursor: 'pointer'
-            }}
+            onChange={(e) => handleScenarioChange(e.target.value)}
           >
             {scenarios.map((sc) => (
-              <option key={sc.id} value={sc.id}>
-                {sc.name}
-              </option>
+              <option key={sc.id} value={sc.id}>{sc.name}</option>
             ))}
           </select>
 
+          {/* Play / Pause */}
           <button
             className="button-primary"
             onClick={handleToggleAuto}
-            style={{ background: isAutoRunning ? '#f59e0b' : undefined }}
+            disabled={isCompleted}
+            style={isAutoRunning ? { background: 'linear-gradient(135deg,#7c2d12,#c2410c)' } : {}}
           >
-            {isAutoRunning ? <Pause size={16} /> : <Play size={16} />}
-            {isAutoRunning ? 'Pause Simulation' : 'Start Simulation'}
+            {isAutoRunning ? <Pause size={14} /> : <Play size={14} />}
+            {isAutoRunning ? 'Pause' : 'Play'}
           </button>
 
-          <button className="button-secondary" onClick={handleStep} disabled={isAutoRunning}>
-            <FastForward size={16} />
-            Advance Turn
+          {/* Step forward */}
+          <button
+            className="button-secondary"
+            onClick={handleStep}
+            disabled={isAutoRunning || isCompleted}
+            title="Advance one turn"
+          >
+            <SkipForward size={14} />
+            Next Turn
           </button>
 
-          <button className="button-secondary" onClick={() => handleReset()}>
-            <RotateCcw size={16} />
-            Reset Match
+          {/* Reset */}
+          <button
+            className="button-danger"
+            onClick={() => handleReset()}
+            title="Reset match to start of selected scenario"
+          >
+            <RotateCcw size={14} />
+            Reset
           </button>
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
-        <button
-          className={activeTab === 'arena' ? 'button-primary' : 'button-secondary'}
-          onClick={() => setActiveTab('arena')}
-        >
-          <Layers size={16} />
-          Simulation Arena
-        </button>
-        <button
-          className={activeTab === 'multiagent' ? 'button-primary' : 'button-secondary'}
-          onClick={() => setActiveTab('multiagent')}
-        >
-          <Users size={16} />
-          Multi-Agent Dynamics
-        </button>
-        <button
-          className={activeTab === 'search' ? 'button-primary' : 'button-secondary'}
-          onClick={() => setActiveTab('search')}
-        >
-          <Cpu size={16} />
-          Search & Alpha-Beta Visualizer
-        </button>
-        <button
-          className={activeTab === 'analytics' ? 'button-primary' : 'button-secondary'}
-          onClick={() => setActiveTab('analytics')}
-        >
-          <BarChart2 size={16} />
-          Analytics & Outcome
-        </button>
-        <button
-          className={activeTab === 'rules' ? 'button-primary' : 'button-secondary'}
-          onClick={() => setActiveTab('rules')}
-        >
-          <BookOpen size={16} />
-          PEAS & Game Rules
-        </button>
-      </div>
+      {/* ── Nav Tabs ────────────────────────────────────────────────────── */}
+      <nav style={{ display: 'flex', gap: 2, borderBottom: '1px solid #232626', paddingBottom: 0 }}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`nav-tab${activeTab === t.id ? ' active' : ''}`}
+            onClick={() => setActiveTab(t.id)}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      {/* Main Screen Views */}
+      {/* ── Main content ────────────────────────────────────────────────── */}
       <main style={{ flex: 1 }}>
+
         {activeTab === 'arena' && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            {/* Team stat bars */}
             <TeamCards state={gameState} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(380px, 1.2fr) minmax(320px, 1fr)', gap: '1rem', alignItems: 'start' }}>
+
+            {/* Arena + side panel */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(340px, 1.15fr) minmax(280px, 1fr)', gap: '0.65rem', alignItems: 'start' }}>
               <GridBoard state={gameState} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 <ActiveAgentPanel state={gameState} decision={latestDecision} />
                 <EventLog events={gameState.events} />
               </div>
@@ -235,15 +252,17 @@ export function App() {
         )}
 
         {activeTab === 'multiagent' && <MultiAgentView state={gameState} />}
-
-        {activeTab === 'search' && (
-          <AlgorithmVisualizer metrics={latestDecision?.metrics} />
-        )}
-
-        {activeTab === 'analytics' && <AnalyticsView state={gameState} />}
-
-        {activeTab === 'rules' && <RulesAndPeasView />}
+        {activeTab === 'search'     && <AlgorithmVisualizer metrics={latestDecision?.metrics} />}
+        {activeTab === 'analytics'  && <AnalyticsView state={gameState} />}
+        {activeTab === 'rules'      && <RulesAndPeasView />}
       </main>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.35; }
+        }
+      `}</style>
     </div>
   );
 }
